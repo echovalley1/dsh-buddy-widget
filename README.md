@@ -78,4 +78,4 @@ lib/
 
 ## 许可
 
-MIT
+本项目基于 **MIT License** 开源，详见 [LICENSE](LICENSE)。
