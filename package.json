@@ -21,6 +21,14 @@
   "engines": {
     "node": ">=20"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/echovalley1/dsh-buddy-widget.git"
+  },
+  "bugs": {
+    "url": "https://github.com/echovalley1/dsh-buddy-widget/issues"
+  },
+  "homepage": "https://github.com/echovalley1/dsh-buddy-widget#readme",
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
