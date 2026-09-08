@@ -154,38 +154,50 @@ if (cfg1.body.scale !== 2.1 || cfg1.body.showBalance !== false) { console.error(
 if (cfg1.body.fontScale !== 1.3 || cfg1.body.bubbleScale !== 0.8) { console.error('FAIL: 字号/气泡倍率持久化失败', JSON.stringify(cfg1.body)); process.exit(1) }
 console.log('PASS: config GET/PUT 回路 OK (scale 2.1, showBalance false, font 1.3, bubble 0.8)')
 
-// 自定义宠物图标：无 → PUT(gif) → GET → DELETE → 无
-const petNone = await rawCall(route('/dsh-buddy/pet'))
-if (petNone.status !== 404) { console.error('FAIL: 无图标时应 404, got', petNone.status); process.exit(1) }
+// 打包默认图标（assets/，无自定义时兜底）
+const defaultLen = (slot) => {
+  try {
+    const p = path.join(here, 'assets', slot === 'busy' ? 'pet-busy-default.gif' : 'pet-default.gif')
+    return fs.statSync(p).size
+  } catch (e) { return 0 }
+}
+const idleDefLen = defaultLen('idle')
+const busyDefLen = defaultLen('busy')
 const gifHeader = Buffer.concat([Buffer.from('GIF89a'), Buffer.alloc(16, 0)])
+
+// 普通图标：默认兜底 → PUT(gif) 覆盖 → GET 自定义 → DELETE 回默认
+const petNone = await rawCall(route('/dsh-buddy/pet'))
+if (idleDefLen === 0) { console.error('FAIL: 缺少默认图标 assets/pet-default.gif'); process.exit(1) }
+if (petNone.status !== 200 || petNone.ctype !== 'image/gif' || petNone.body.length !== idleDefLen) { console.error('FAIL: 无自定义时应回退默认图标', petNone.status, petNone.body.length); process.exit(1) }
 const petPut = await call2(route('/dsh-buddy/pet'), 'PUT', gifHeader)
 if (!petPut.ok || petPut.mime !== 'image/gif' || !(petPut.ts > 0)) { console.error('FAIL: pet PUT 失败', JSON.stringify(petPut)); process.exit(1) }
 const petGet = await rawCall(route('/dsh-buddy/pet'))
-if (petGet.status !== 200 || petGet.ctype !== 'image/gif' || petGet.body.length !== gifHeader.length) { console.error('FAIL: pet GET 异常', petGet.status, petGet.ctype); process.exit(1) }
+if (petGet.status !== 200 || petGet.ctype !== 'image/gif' || petGet.body.length !== gifHeader.length) { console.error('FAIL: 上传后应返回自定义字节', petGet.status, petGet.body.length); process.exit(1) }
 const cfg2 = await call(route('/dsh-buddy/config.json'))
-if (cfg2.body.hasPet !== true || cfg2.body.petMime !== 'image/gif') { console.error('FAIL: config 应反映 hasPet', JSON.stringify(cfg2.body)); process.exit(1) }
+if (cfg2.body.hasPet !== true || cfg2.body.petMime !== 'image/gif' || cfg2.body.hasDefaultPet !== true) { console.error('FAIL: config 应反映 hasPet', JSON.stringify(cfg2.body)); process.exit(1) }
 const petDel = await call(route('/dsh-buddy/pet'), 'DELETE')
 if (!petDel.body.ok) { console.error('FAIL: pet DELETE 失败'); process.exit(1) }
-const petNone2 = await rawCall(route('/dsh-buddy/pet'))
-if (petNone2.status !== 404) { console.error('FAIL: DELETE 后应 404'); process.exit(1) }
-console.log('PASS: 图标 PUT(gif)/GET/DELETE 回路 + config.hasPet 同步')
+const petBackToDefault = await rawCall(route('/dsh-buddy/pet'))
+if (petBackToDefault.status !== 200 || petBackToDefault.body.length !== idleDefLen) { console.error('FAIL: DELETE 后应回退默认图标'); process.exit(1) }
+console.log('PASS: 普通图标 默认兜底/PUT(gif)/GET/DELETE 回路 + config.hasPet 同步')
 
-// 回复图标（busy slot）：PUT ?slot=busy → GET 区分 → DELETE
+// 回复图标（busy slot）：默认兜底 → PUT → GET 区分 → DELETE
 const busyUrl = '/dsh-buddy/pet?slot=busy'
+if (busyDefLen === 0) { console.error('FAIL: 缺少默认回复图标 assets/pet-busy-default.gif'); process.exit(1) }
 const busyNone = await rawCall(route('/dsh-buddy/pet'), 'GET', null, busyUrl)
-if (busyNone.status !== 404) { console.error('FAIL: 无回复图标时应 404'); process.exit(1) }
+if (busyNone.status !== 200 || busyNone.body.length !== busyDefLen) { console.error('FAIL: 无自定义回复图标时应回退默认', busyNone.status); process.exit(1) }
 const busyPut = await call2(route('/dsh-buddy/pet'), 'PUT', gifHeader, busyUrl)
 if (!busyPut.ok || busyPut.slot !== 'busy' || busyPut.mime !== 'image/gif') { console.error('FAIL: busy PUT 失败', JSON.stringify(busyPut)); process.exit(1) }
 const busyGet = await rawCall(route('/dsh-buddy/pet'), 'GET', null, busyUrl)
-if (busyGet.status !== 200 || busyGet.ctype !== 'image/gif') { console.error('FAIL: busy GET 异常'); process.exit(1) }
-const idleStill404 = await rawCall(route('/dsh-buddy/pet'))
-if (idleStill404.status !== 404) { console.error('FAIL: busy 不应影响 idle slot'); process.exit(1) }
+if (busyGet.status !== 200 || busyGet.ctype !== 'image/gif' || busyGet.body.length !== gifHeader.length) { console.error('FAIL: busy GET 异常'); process.exit(1) }
+const idleUnchanged = await rawCall(route('/dsh-buddy/pet'))
+if (idleUnchanged.body.length !== idleDefLen) { console.error('FAIL: busy 不应影响 idle slot'); process.exit(1) }
 const cfg3 = await call(route('/dsh-buddy/config.json'))
-if (cfg3.body.hasBusyPet !== true || cfg3.body.petBusyMime !== 'image/gif') { console.error('FAIL: config 应反映 hasBusyPet', JSON.stringify(cfg3.body)); process.exit(1) }
+if (cfg3.body.hasBusyPet !== true || cfg3.body.petBusyMime !== 'image/gif' || cfg3.body.hasDefaultBusyPet !== true) { console.error('FAIL: config 应反映 hasBusyPet', JSON.stringify(cfg3.body)); process.exit(1) }
 const busyDelRaw = await rawCall(route('/dsh-buddy/pet'), 'DELETE', null, busyUrl)
 const busyDel = JSON.parse(busyDelRaw.body)
 if (!busyDel.ok || busyDel.slot !== 'busy') { console.error('FAIL: busy DELETE 失败', JSON.stringify(busyDel)); process.exit(1) }
-console.log('PASS: 回复图标 busy slot PUT/GET/DELETE 回路 + config.hasBusyPet 同步')
+console.log('PASS: 回复图标 默认兜底/busy slot PUT/GET/DELETE 回路 + config.hasBusyPet 同步')
 
 // call2：raw body + json 响应
 async function call2(r, method, buf, url) {
