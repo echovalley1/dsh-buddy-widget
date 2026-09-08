@@ -1,17 +1,17 @@
 # dsh-buddy-widget · DSH 陪伴助手挂件
 
-一只住在 DSH Web 界面右下角的小章鱼🐙：实时告诉你**模型是不是正在回复（计时）**、**上一轮花了多少钱**、**今天聊了几轮 / 烧了多少 token / 估算花了多少**，配好 API Key 还能顺带显示**余额**。零外部资源（无图片无音效，全部 CSS/emoji），标准 DSH bundle 插件，`dsh plugin` 一条命令安装，随界面自动启用。
+一只住在 DSH Web 界面右下角的小猫娘🐱：实时告诉你**模型是不是正在回复（计时）**、**上一轮花了多少钱**、**今天聊了几轮 / 烧了多少 token / 估算花了多少**，配好 API Key 还能顺带显示**余额**。自带默认图标、纯 CSS 界面，标准 DSH bundle 插件，`dsh plugin` 一条命令安装，随界面自动启用。
 
-架构学习自 [MeteorNOX/DeepSeek-Balance-Whale-Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget)（标准 DSH bundle 插件三层链路：`package.json → dsh.bundle.patch → cordis.patch.yml`；宿主注册 webServer 路由 + `tapIndex` 注入页面脚本；前端整份代码内嵌在宿主文件的 `WIDGET_JS` 模板字符串里）。
+架构学习自 [MeteorNOX/DeepSeek-Balance-Whale-Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget)（标准 DSH bundle 插件三层链路：`package.json → dsh.bundle.patch → cordis.patch.yml`；宿主注册 webServer 路由 + `tapIndex` 注入页面脚本；前端代码独立为 `lib/widget.js`，宿主按请求读盘 → 改 UI 只需 F5 热更）。
 
 ## 功能
 
 | 块 | 说明 |
 |---|---|
-| 🐙 会话状态宠物 | 摸鱼 → 回复中（状态胶囊「回复中 Ns」）；数据源：`assistant/chunk` 心跳 + 超时判定 |
-| 🖼️ 图标可替换（两套） | ⋯ 菜单「图标」与「回复图标」各可上传本地图片（**PNG/JPG/GIF/WebP**，GIF 会动，≤4MB）：平时显示普通图标，检测到回复中自动切换为回复图标（未设置时分别用 🐙 / ✍️ 默认表情）；均支持「恢复默认」并持久化（`$DSH_HOME/.dshb-pet`、`.dshb-pet-busy`） |
+| 🐱 会话状态宠物 | 摸鱼 → 回复中（状态胶囊「回复中 Ns」）；数据源：`assistant/chunk` 心跳 + 超时判定 |
+| 🖼️ 图标可替换（两套） | ⋯ 菜单「图标」与「回复图标」各可上传本地图片（**PNG/JPG/GIF/WebP**，GIF 会动，≤4MB）：平时显示普通图标，检测到回复中自动切换为回复图标；均**内置打包默认图**（`assets/pet-default.gif`、`assets/pet-busy-default.gif`），「恢复默认」回到内置默认并持久化（`$DSH_HOME/.dshb-pet`、`.dshb-pet-busy`） |
 | 💬 每轮对话消耗 | 监听 `session/event`，取 `assistant/message` 的真实 `usage`（含缓存命中/推理 token），`turn/end` 结算出本轮 **金额 · tokens · 用时** 泡泡（6s 自动收起）；主会话与子代理按 sessionId 分桶不串账 |
-| 📊 今日统计 | 轮次 / 消息数 / token 细分 / 估算金额，实时落盘 `$DSH_HOME/.dshb-daily.json`（跨天自动归档保留 30 天）；点击章鱼打开统计泡泡 |
+| 📊 今日统计 | 轮次 / 消息数 / token 细分 / 估算金额，实时落盘 `$DSH_HOME/.dshb-daily.json`（跨天自动归档保留 30 天）；点击图标打开统计泡泡 |
 | 💰 余额（可选） | 配置 `DEEPSEEK_API_KEY` 后拉取 `api.deepseek.com/user/balance`（25s 缓存 + 瞬时故障沿用最近值）；未配置则静默隐藏余额行，不影响其他功能 |
 | 🖱️ 交互 | 拖拽 + 上/下/左/右四分之一吸附（left/top 像素模型）、左吸附整体镜像 + 文字反向、三点菜单（大小 0.6–2.5 / 显示余额 / 回右下角）、配置与位置均持久化 |
 
@@ -24,7 +24,7 @@ dsh plugin --profile web add link:<本目录绝对路径>
 ```
 
 - 若报 pnpm 阻止构建脚本（allowBuilds），在 `%USERPROFILE%\.dsh\profiles\web\pnpm-workspace.yaml` 的 `allowBuilds` 下放行对应包 key 后重试。
-- 安装后**重启 `dsh web`**，再 F5 刷新浏览器，右下角出现章鱼。
+- 安装后**重启 `dsh web`**，再 F5 刷新浏览器，右下角出现猫娘挂件。
 - 验证：
 
 ```powershell
