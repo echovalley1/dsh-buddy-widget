@@ -10,16 +10,14 @@ if (process.env.DSH_HOME) {
   fs.rmSync(process.env.DSH_HOME, { recursive: true, force: true })
   fs.mkdirSync(process.env.DSH_HOME, { recursive: true })
 }
-const src = fs.readFileSync(path.join(here, 'lib', 'index.js'), 'utf8')
 
-// 1) 校验内嵌前端 JS 语法（只 parse，不执行 DOM）
-const m = src.match(/const WIDGET_JS = `([\s\S]*?)`\n\n\/\/ ={20,}/)
-if (!m) { console.error('FAIL: WIDGET_JS block not found'); process.exit(1) }
+// 1) 校验页面端源码语法（lib/widget.js 是线上唯一事实源；宿主每次请求读盘返回它）
+const widgetSrc = fs.readFileSync(path.join(here, 'lib', 'widget.js'), 'utf8')
 try {
-  new Function(m[1]) // 语法检查
-  console.log('PASS: WIDGET_JS 语法正确, 长度', m[1].length)
+  new Function(widgetSrc) // 语法检查（不执行 DOM）
+  console.log('PASS: lib/widget.js 语法正确, 长度', widgetSrc.length)
 } catch (err) {
-  console.error('FAIL: WIDGET_JS 语法错误 ->', err.message)
+  console.error('FAIL: lib/widget.js 语法错误 ->', err.message)
   process.exit(1)
 }
 
@@ -56,6 +54,11 @@ const html1 = taps[0](html0)
 if (html1.indexOf('/dsh-buddy/widget.js') === -1) { console.error('FAIL: tapIndex 未注入'); process.exit(1) }
 const html2 = taps[0](html1)
 if (html2 !== html1) { console.error('FAIL: tapIndex 幂等失败'); process.exit(1) }
+// /widget.js 每次读盘返回 lib/widget.js（线上事实源链路）
+const wjsResp = await rawCall(route('/dsh-buddy/widget.js'))
+const wjsText = typeof wjsResp.body === 'string' ? wjsResp.body : wjsResp.body.toString('utf8')
+if (wjsResp.status !== 200 || wjsText !== widgetSrc) { console.error('FAIL: /widget.js 未返回 lib/widget.js'); process.exit(1) }
+console.log('PASS: /dsh-buddy/widget.js 路由 == lib/widget.js')
 
 // 模拟请求
 function call(r, method = 'GET', bodyText) {
