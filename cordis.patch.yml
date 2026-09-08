@@ -1,0 +1,12 @@
+# ============================================================================
+# dsh-buddy-widget —— DSH bundle patch（挂载声明）
+#
+# 本文件是 `dsh.bundle.patch` 所指的补丁层。DSH 启动时按 bundle 层栈叠加
+# 各插件 patch：把下面这行插入 Web profile 的配置树，loader 会以 `name`
+# 指定的包名从 profile 目录解析并运行插件（包 main = lib/index.js）。
+#
+# 安装：dsh plugin --profile web add link:<本目录绝对路径>
+# ============================================================================
+- insert:
+    - id: dsh-buddy
+      name: dsh-buddy-widget

@@ -1,0 +1,30 @@
+{
+  "name": "dsh-buddy-widget",
+  "version": "0.1.0",
+  "description": "DSH 陪伴助手挂件：常驻右下角的小章鱼，实时反映会话状态（摸鱼/思考/回复），每轮结束弹出 token 与金额，今日对话统计（轮次/token/估算费用），可选余额显示（配置 DEEPSEEK_API_KEY 后启用，无 key 自动隐藏余额行）。",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "buddy",
+    "widget",
+    "session-stats"
+  ],
+  "type": "module",
+  "main": "lib/index.js",
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "license": "MIT"
+}
