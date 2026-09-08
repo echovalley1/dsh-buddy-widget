@@ -33,6 +33,14 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "compatibility": {
+      "dsh": ">=0.1.1-rc.1 <0.2.0",
+      "node": ">=20",
+      "profiles": [
+        "web"
+      ],
+      "notes": "Host bundle plugin: uses only webServer + credentials services and session/event hooks; no client (frontend) package. Runtime files (lib/index.js, lib/widget.js) rely on Node built-ins only, no external npm dependencies. See docs/STORE.md for the permission matrix, external services, failure bounds and disposable-Profile install/start/uninstall evidence."
     }
   },
   "license": "MIT"

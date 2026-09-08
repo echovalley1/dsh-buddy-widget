@@ -76,6 +76,13 @@ lib/
 └── widget.js   # 页面端 IIFE（改动 F5 即生效；index.js 内嵌 WIDGET_JS 仅为兜底快照）
 ```
 
+## DSH STORE 收录（manifest 声明）
+
+- **DSH 兼容**：`>=0.1.1-rc.1 <0.2.0`，**Profile**：`web`（见 `package.json → dsh.compatibility`）
+- **Node.js**：`>=20`（`engines.node`）
+- **运行时依赖**：无（仅 Node 内置模块与宿主 `webServer` / `credentials` / `session` 扩展面）
+- **权限/外部服务/失败边界 + 一次性 Profile 证据**：详见 [docs/STORE.md](docs/STORE.md)
+
 ## 许可
 
 本项目基于 **MIT License** 开源，详见 [LICENSE](LICENSE)。
