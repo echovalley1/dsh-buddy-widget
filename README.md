@@ -73,7 +73,7 @@ node smoke.mjs                            # 离线冒烟（mock ctx，不动真�
 ```text
 lib/
 ├── index.js    # 宿主：apply/routes/事件/持久化（改动需重启 dsh web 生效）
-└── widget.js   # 页面端 IIFE（改动 F5 即生效；index.js 内嵌 WIDGET_JS 仅为兜底快照）
+└── widget.js   # 页面端 IIFE（唯一事实源，宿主每次请求读盘；改动 F5 即生效）
 ```
 
 ## DSH STORE 收录（manifest 声明）
