@@ -9,7 +9,7 @@
 | 块 | 说明 |
 |---|---|
 | 🐱 会话状态宠物 | 摸鱼 → 回复中（状态胶囊「回复中 Ns」）；数据源：`assistant/chunk` 心跳 + 超时判定 |
-| 🖼️ 图标可替换（两套） | ⋯ 菜单「图标」与「回复图标」各可上传本地图片（**PNG/JPG/GIF/WebP**，GIF 会动，≤4MB）：平时显示普通图标，检测到回复中自动切换为回复图标；均**内置打包默认图**（`assets/pet-default.gif`、`assets/pet-busy-default.gif`），「恢复默认」回到内置默认并持久化（`$DSH_HOME/.dshb-pet`、`.dshb-pet-busy`） |
+| 🖼️ 图标可替换（三套） | ⋯ 菜单「图标」「回复图标」「完成图标」各自可上传本地图片（**PNG/JPG/GIF/WebP**，GIF 会动，≤4MB）：平时显示普通图标；回复中自动切回复图标；**每轮回复结束后自动播放完成庆祝 GIF 约 3 遍**（时长按 GIF 帧延时自动估算）。均**内置打包默认图**（`assets/pet-default.gif`、`pet-busy-default.gif`、`pet-done-default.gif`），「恢复默认」回到内置默认并持久化（`$DSH_HOME/.dshb-pet`、`.dshb-pet-busy`、`.dshb-pet-done`） |
 | 💬 每轮对话消耗 | 监听 `session/event`，取 `assistant/message` 的真实 `usage`（含缓存命中/推理 token），`turn/end` 结算出本轮 **金额 · tokens · 用时** 泡泡（6s 自动收起）；主会话与子代理按 sessionId 分桶不串账 |
 | 📊 今日统计 | 轮次 / 消息数 / token 细分 / 估算金额，实时落盘 `$DSH_HOME/.dshb-daily.json`（跨天自动归档保留 30 天）；点击图标打开统计泡泡 |
 | 💰 余额（可选） | 配置 `DEEPSEEK_API_KEY` 后拉取 `api.deepseek.com/user/balance`（25s 缓存 + 瞬时故障沿用最近值）；未配置则静默隐藏余额行，不影响其他功能 |

@@ -157,12 +157,13 @@ console.log('PASS: config GET/PUT 回路 OK (scale 2.1, showBalance false, font 
 // 打包默认图标（assets/，无自定义时兜底）
 const defaultLen = (slot) => {
   try {
-    const p = path.join(here, 'assets', slot === 'busy' ? 'pet-busy-default.gif' : 'pet-default.gif')
-    return fs.statSync(p).size
+    const name = slot === 'busy' ? 'pet-busy-default.gif' : (slot === 'done' ? 'pet-done-default.gif' : 'pet-default.gif')
+    return fs.statSync(path.join(here, 'assets', name)).size
   } catch (e) { return 0 }
 }
 const idleDefLen = defaultLen('idle')
 const busyDefLen = defaultLen('busy')
+const doneDefLen = defaultLen('done')
 const gifHeader = Buffer.concat([Buffer.from('GIF89a'), Buffer.alloc(16, 0)])
 
 // 普通图标：默认兜底 → PUT(gif) 覆盖 → GET 自定义 → DELETE 回默认
@@ -198,6 +199,22 @@ const busyDelRaw = await rawCall(route('/dsh-buddy/pet'), 'DELETE', null, busyUr
 const busyDel = JSON.parse(busyDelRaw.body)
 if (!busyDel.ok || busyDel.slot !== 'busy') { console.error('FAIL: busy DELETE 失败', JSON.stringify(busyDel)); process.exit(1) }
 console.log('PASS: 回复图标 默认兜底/busy slot PUT/GET/DELETE 回路 + config.hasBusyPet 同步')
+
+// 完成庆祝图标（done slot）：默认兜底 → PUT → GET → DELETE
+const doneUrl = '/dsh-buddy/pet?slot=done'
+if (doneDefLen === 0) { console.error('FAIL: 缺少默认完成图标 assets/pet-done-default.gif'); process.exit(1) }
+const doneNone = await rawCall(route('/dsh-buddy/pet'), 'GET', null, doneUrl)
+if (doneNone.status !== 200 || doneNone.body.length !== doneDefLen) { console.error('FAIL: 无自定义完成图标时应回退默认'); process.exit(1) }
+const donePut = await call2(route('/dsh-buddy/pet'), 'PUT', gifHeader, doneUrl)
+if (!donePut.ok || donePut.slot !== 'done' || donePut.mime !== 'image/gif') { console.error('FAIL: done PUT 失败', JSON.stringify(donePut)); process.exit(1) }
+const doneGet = await rawCall(route('/dsh-buddy/pet'), 'GET', null, doneUrl)
+if (doneGet.status !== 200 || doneGet.body.length !== gifHeader.length) { console.error('FAIL: done GET 异常'); process.exit(1) }
+const cfg4 = await call(route('/dsh-buddy/config.json'))
+if (cfg4.body.hasDonePet !== true || cfg4.body.hasDefaultDonePet !== true || !(cfg4.body.petDoneMs > 0)) { console.error('FAIL: config 应反映 done 图标与播放时长', JSON.stringify(cfg4.body)); process.exit(1) }
+const doneDelRaw = await rawCall(route('/dsh-buddy/pet'), 'DELETE', null, doneUrl)
+const doneDel = JSON.parse(doneDelRaw.body)
+if (!doneDel.ok || doneDel.slot !== 'done') { console.error('FAIL: done DELETE 失败'); process.exit(1) }
+console.log('PASS: 完成图标 done slot PUT/GET/DELETE + hasDonePet/petDoneMs 同步')
 
 // call2：raw body + json 响应
 async function call2(r, method, buf, url) {
