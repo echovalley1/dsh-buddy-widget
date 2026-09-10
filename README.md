@@ -93,7 +93,7 @@ copy(JSON.parse(localStorage.userToken).value)
 2. 找到键 `userToken`，它的值形如：
 
 ```json
-{"value":"t7Rc…64位…","__version":"0"}
+{"value":"<64位字母数字token>","__version":"0"}
 ```
 
 3. 复制 `value` 字段里那一串（**不要连引号和大括号**；当然整段 JSON 直接粘也可以，插件会自动取出 `value`）。
