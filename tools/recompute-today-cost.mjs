@@ -74,12 +74,24 @@ function walk(dir, acc = []) {
   return acc
 }
 
-const today = new Date()
+// ---- 目标日期（--date=YYYY-MM-DD，缺省今天） ----
+const argv = process.argv.slice(2)
+const dateArg = (() => {
+  const withEq = argv.find((a) => a.startsWith('--date='))
+  if (withEq) return withEq.slice('--date='.length)
+  const i = argv.indexOf('--date')
+  return i >= 0 ? argv[i + 1] : null
+})()
 const pad = (n) => String(n).padStart(2, '0')
-const todayKey = today.getFullYear() + '-' + pad(today.getMonth() + 1) + '-' + pad(today.getDate())
-const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()
+const now = new Date()
+const target = dateArg
+  ? new Date(Number(dateArg.slice(0, 4)), Number(dateArg.slice(5, 7)) - 1, Number(dateArg.slice(8, 10)))
+  : new Date(now.getFullYear(), now.getMonth(), now.getDate())
+const targetKey = target.getFullYear() + '-' + pad(target.getMonth() + 1) + '-' + pad(target.getDate())
+const rangeStart = target.getTime()
+const rangeEnd = new Date(target.getFullYear(), target.getMonth(), target.getDate() + 1).getTime()
 
-const agg = { input: 0, cache: 0, output: 0, reason: 0, cost: 0, costOff: 0, costPeak: 0, msgs: 0, peakMsgs: 0, sessions: 0, byModel: {} }
+const agg = { input: 0, cache: 0, output: 0, reason: 0, cost: 0, costOff: 0, costPeak: 0, msgs: 0, turns: 0, peakMsgs: 0, sessions: 0, byModel: {} }
 for (const f of walk(SESSIONS)) {
   let text
   try { text = decodeAll(fs.readFileSync(f)) } catch (e) { continue }
@@ -88,10 +100,12 @@ for (const f of walk(SESSIONS)) {
     if (!line || line.indexOf('"usage"') === -1) continue
     let o
     try { o = JSON.parse(line) } catch (e) { continue }
+    if (!o.time || o.time < rangeStart || o.time >= rangeEnd) continue
+    if (o.type === 'turn/end') { agg.turns++; used = true; continue }
     if (o.type !== 'assistant/message') continue
     const d = o.data || {}
     const u = d.usage
-    if (!u || !o.time || o.time < startOfToday) continue
+    if (!u) continue
     const model = (d.message && d.message.source && d.message.source.model) || ''
     const input = Number(u.inputTokens) || 0
     const cache = Number(u.cacheReadTokens) || 0
@@ -111,28 +125,43 @@ for (const f of walk(SESSIONS)) {
   if (used) agg.sessions++
 }
 
-console.log('today:', todayKey)
-console.log('events(assistant/message) included:', agg.msgs, '| peak events:', agg.peakMsgs, '| sessions:', agg.sessions)
-console.log('tokens  input=%d cache=%d output=%d reason=%d', agg.input, agg.cache, agg.output, agg.reason)
+console.log('date:', targetKey)
+console.log('events(assistant/message):', agg.msgs, '| turns(turn/end):', agg.turns, '| peak events:', agg.peakMsgs, '| sessions:', agg.sessions)
+console.log('tokens  input=%d cache=%d output=%d reason=%d (显示用 tokens=%d)', agg.input, agg.cache, agg.output, agg.reason, agg.input + agg.output)
 console.log('cost  total=¥%s  (off-peak ¥%s + peak ¥%s)', agg.cost.toFixed(4), agg.costOff.toFixed(4), agg.costPeak.toFixed(4))
 console.log('by model:', JSON.stringify(Object.fromEntries(Object.entries(agg.byModel).map(([k, v]) => [k, Number(v.toFixed(4))]))))
 
-// 对照现有分桶（验证覆盖率）
 let day = null
 try { day = JSON.parse(fs.readFileSync(DAILY, 'utf8')) } catch (e) {}
-if (day && day.date === todayKey) {
-  console.log('--- stored buckets vs recomputed ---')
+if (day && day.date === targetKey) {
+  console.log('--- stored buckets vs recomputed（今日）---')
   console.log('stored  input=%d cache=%d output=%d reason=%d cost=%s', day.tokens.input, day.tokens.cache, day.tokens.output, day.tokens.reason, day.cost)
   console.log('delta   input=%d cache=%d output=%d reason=%d', agg.input - day.tokens.input, agg.cache - day.tokens.cache, agg.output - day.tokens.output, agg.reason - day.tokens.reason)
 }
-if (process.argv.includes('--write') && day && day.date === todayKey) {
-  fs.writeFileSync(DAILY, JSON.stringify({
-    ...day,
+
+if (argv.includes('--write')) {
+  if (!day) { console.error('FAIL: daily file unreadable'); process.exit(1) }
+  if (day.date === targetKey && !argv.includes('--force-today')) {
+    console.error('SKIP: 目标是今天（已清零或正常累计）；如需覆盖请加 --force-today')
+    process.exit(2)
+  }
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const backup = path.join(path.dirname(DAILY), `.dshb-daily.bak-${stamp}.json`)
+  fs.writeFileSync(backup, fs.readFileSync(DAILY))
+  day.history = day.history || {}
+  const prev = day.history[targetKey] || {}
+  day.history[targetKey] = {
+    // 会话日志中的 turn/end 无独立时间戳（不在时间窗内），无法重算轮数 → 回退旧值
+    turns: agg.turns || prev.turns || 0,
     cost: Number(agg.cost.toFixed(6)),
-    costRecomputedAt: new Date().toISOString(),
-    costMethod: 'recomputed-from-session-logs-official-2026-08-17-pricing',
-    costOffPeak: Number(agg.costOff.toFixed(6)),
-    costPeak: Number(agg.costPeak.toFixed(6)),
-  }), 'utf8')
-  console.log('WRITTEN:', DAILY)
+    tokens: agg.input + agg.output, // 非缓存口径（旧值含缓存，已修正）
+    cacheTokens: agg.cache,
+    costMethod: 'session-logs-official-2026-08-17',
+    prevCost: typeof prev.cost === 'number' ? prev.cost : null,
+    prevTokens: typeof prev.tokens === 'number' ? prev.tokens : null,
+  }
+  fs.writeFileSync(DAILY, JSON.stringify(day), 'utf8')
+  console.log('WRITTEN history[' + targetKey + '] =', JSON.stringify(day.history[targetKey]))
+  console.log('backup:', backup)
 }
+
