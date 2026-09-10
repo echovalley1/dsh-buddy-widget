@@ -27,6 +27,7 @@ const listeners = new Map()
 const routes = []
 const taps = []
 let cleanups = []
+const credStore = new Map()
 const fakeCtx = {
   on(ev, fn) {
     if (!listeners.has(ev)) listeners.set(ev, [])
@@ -38,7 +39,11 @@ const fakeCtx = {
     register(r) { routes.push(r); return () => {} },
     tapIndex(t) { taps.push(t); return () => {} },
   },
-  credentials: { async resolve() { return undefined } },
+  credentials: {
+    async resolve(ref) { return credStore.has(ref) ? { value: credStore.get(ref) } : undefined },
+    async set(ref, value) { credStore.set(ref, value) },
+    async unset(ref) { credStore.delete(ref) },
+  },
 }
 
 mod.apply(fakeCtx)
@@ -61,7 +66,7 @@ if (wjsResp.status !== 200 || wjsText !== widgetSrc) { console.error('FAIL: /wid
 console.log('PASS: /dsh-buddy/widget.js 路由 == lib/widget.js')
 
 // 模拟请求
-function call(r, method = 'GET', bodyText) {
+function call(r, method = 'GET', bodyText, headers) {
   return new Promise((resolve) => {
     const res = {
       status: 0,
@@ -71,6 +76,7 @@ function call(r, method = 'GET', bodyText) {
     const req = {
       method,
       url: r.path,
+      headers: headers || {},
       on(ev, fn) {
         if (ev === 'data') { if (bodyText) fn(Buffer.from(bodyText)) }
         if (ev === 'end') fn()
@@ -154,12 +160,46 @@ function rawCall(r, method = 'GET', bodyBuf, url) {
 // config GET/PUT
 const cfg0 = await call(route('/dsh-buddy/config.json'))
 if (cfg0.body.scale !== 1.5 || cfg0.body.hasKey !== false || cfg0.body.hasPet !== false) { console.error('FAIL: config 初值异常', JSON.stringify(cfg0.body)); process.exit(1) }
-const cfgPut = await call(route('/dsh-buddy/config.json'), 'PUT', JSON.stringify({ scale: 2.1, showBalance: false, fontScale: 1.3, bubbleScale: 0.8 }))
+const cfgPut = await call(route('/dsh-buddy/config.json'), 'PUT', JSON.stringify({ scale: 2.1, showBalance: false, usageMode: 'token', fontScale: 1.3, bubbleScale: 0.8 }))
 if (cfgPut.body.ok !== true || cfgPut.body.scale !== 2.1) { console.error('FAIL: config PUT 失败', JSON.stringify(cfgPut.body)); process.exit(1) }
+if (cfgPut.body.usageMode !== 'token') { console.error('FAIL: usageMode 未回显 token', JSON.stringify(cfgPut.body)); process.exit(1) }
 const cfg1 = await call(route('/dsh-buddy/config.json'))
 if (cfg1.body.scale !== 2.1 || cfg1.body.showBalance !== false) { console.error('FAIL: config 持久化失败', JSON.stringify(cfg1.body)); process.exit(1) }
 if (cfg1.body.fontScale !== 1.3 || cfg1.body.bubbleScale !== 0.8) { console.error('FAIL: 字号/气泡倍率持久化失败', JSON.stringify(cfg1.body)); process.exit(1) }
-console.log('PASS: config GET/PUT 回路 OK (scale 2.1, showBalance false, font 1.3, bubble 0.8)')
+if (cfg1.body.usageMode !== 'token') { console.error('FAIL: usageMode 持久化失败', JSON.stringify(cfg1.body)); process.exit(1) }
+if (cfg1.body.hasPlatformToken !== false) { console.error('FAIL: 无 DEEPSEEK_PLATFORM_TOKEN 时应为 false', JSON.stringify(cfg1.body)); process.exit(1) }
+// 非法 usageMode 归一化为 ledger，且不影响其余字段
+const cfgBad = await call(route('/dsh-buddy/config.json'), 'PUT', JSON.stringify({ scale: 2.1, usageMode: 'bogus' }))
+if (cfgBad.body.ok !== true || cfgBad.body.usageMode !== 'ledger') { console.error('FAIL: 非法 usageMode 应回落 ledger', JSON.stringify(cfgBad.body)); process.exit(1) }
+const cfgMode = await call(route('/dsh-buddy/config.json'))
+if (cfgMode.body.scale !== 2.1 || cfgMode.body.fontScale !== 1.3 || cfgMode.body.usageMode !== 'ledger') { console.error('FAIL: 合并写入破坏了其他字段', JSON.stringify(cfgMode.body)); process.exit(1) }
+console.log('PASS: config GET/PUT 回路 OK (scale 2.1, showBalance false, font 1.3, bubble 0.8, usageMode token→ledger)')
+
+// 平台令牌写入路由：只写不读 + 归一化 + 同源校验
+const tkRoute = route('/dsh-buddy/platform-token')
+if (!tkRoute) { console.error('FAIL: 缺少 /dsh-buddy/platform-token 路由'); process.exit(1) }
+const tkMethod = await call(tkRoute, 'GET')
+if (tkMethod.status !== 405) { console.error('FAIL: token 路由应拒绝 GET', tkMethod.status); process.exit(1) }
+const tkEmpty = await call(tkRoute, 'PUT', JSON.stringify({ token: '   ' }))
+if (tkEmpty.status !== 400 || tkEmpty.body.ok !== false) { console.error('FAIL: 空 token 应 400', JSON.stringify(tkEmpty.body)); process.exit(1) }
+const tkCross = await call(tkRoute, 'PUT', JSON.stringify({ token: 'x' }), { origin: 'http://evil.example', host: '127.0.0.1:3080' })
+if (tkCross.status !== 403) { console.error('FAIL: 跨源写入应 403', tkCross.status); process.exit(1) }
+if (credStore.has('DEEPSEEK_PLATFORM_TOKEN')) { console.error('FAIL: 被拒请求不应写入凭据'); process.exit(1) }
+// 整段粘贴 localStorage.userToken → 取 value 并 trim
+const tkPut = await call(tkRoute, 'PUT', JSON.stringify({ token: ' {"value":"  tok-64  ","__version":"0"} ' }), { origin: 'http://127.0.0.1:3080', host: '127.0.0.1:3080' })
+if (tkPut.body.ok !== true || tkPut.body.hasPlatformToken !== true) { console.error('FAIL: token PUT 失败', JSON.stringify(tkPut.body)); process.exit(1) }
+if (credStore.get('DEEPSEEK_PLATFORM_TOKEN') !== 'tok-64') { console.error('FAIL: 整段 JSON 未归一化为裸 token:', JSON.stringify(credStore.get('DEEPSEEK_PLATFORM_TOKEN'))); process.exit(1) }
+const cfgTok = await call(route('/dsh-buddy/config.json'))
+if (cfgTok.body.hasPlatformToken !== true) { console.error('FAIL: config.hasPlatformToken 未同步'); process.exit(1) }
+// 裸 token 直存
+const tkRaw = await call(tkRoute, 'PUT', JSON.stringify({ token: 'Bearer raw-token' }))
+if (tkRaw.body.ok !== true || credStore.get('DEEPSEEK_PLATFORM_TOKEN') !== 'raw-token') { console.error('FAIL: Bearer 前缀未剥离', JSON.stringify(credStore.get('DEEPSEEK_PLATFORM_TOKEN'))); process.exit(1) }
+// 移除
+const tkDel = await call(tkRoute, 'DELETE')
+if (tkDel.body.ok !== true || tkDel.body.hasPlatformToken !== false || credStore.has('DEEPSEEK_PLATFORM_TOKEN')) { console.error('FAIL: token DELETE 失败', JSON.stringify(tkDel.body)); process.exit(1) }
+const cfgTok2 = await call(route('/dsh-buddy/config.json'))
+if (cfgTok2.body.hasPlatformToken !== false) { console.error('FAIL: 移除后 config.hasPlatformToken 应为 false'); process.exit(1) }
+console.log('PASS: 平台令牌 写入/归一化/同源拒绝/移除 回路 OK（响应从不回显值）')
 
 // 打包默认图标（assets/，无自定义时兜底）
 const defaultLen = (slot) => {

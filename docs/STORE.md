@@ -30,11 +30,16 @@
 | files | 读：插件包内 `assets/*`（打包默认图标） | 只读自身包内资源 |
 | files | 写：图标上传持久化与配置/账本 | 仅写 `$DSH_HOME/.dshb-config.json`、`.dshb-daily.json`、`.dshb-pet*`（含 `profiles/web/` 回退路径）；写入上限 4MB/图标；账本保留 30 天 |
 | network | 余额查询（可选） | `https://api.deepseek.com/user/balance`，`GET`，20s 超时、失败重试 1 次、25s 内存缓存、瞬时故障沿用最近值 |
-| network | 用量查询（可选） | `https://platform.deepseek.com/api/v0/usage/...`，仅当配置 `DEEPSEEK_PLATFORM_TOKEN` 时使用，15s 超时 |
+| network | 用量查询（可选） | `https://platform.deepseek.com/api/v0/usage/by_api_key/cost`（平台已结算金额，首选）与 `.../amount`（token 分桶，回退估算），仅当配置 `DEEPSEEK_PLATFORM_TOKEN` 时使用，15s 超时 |
 | credentials | `DEEPSEEK_API_KEY`（可选但推荐） | 仅 `resolve()` 后作为 Bearer 请求余额接口，不落盘、不输出 |
-| credentials | `DEEPSEEK_PLATFORM_TOKEN`（可选） | 同上，仅用于平台用量换算；缺失时自动回落记账模式 |
+| credentials | `DEEPSEEK_PLATFORM_TOKEN`（可选） | 读：仅用于平台用量查询，缺失或失效时自动回落记账模式并在菜单提示；写：仅由用户在本机菜单内主动粘贴触发 `ctx.credentials.set()`，**只写不读**，任何响应/日志都不回显值，跨源请求 403 |
 | commands | 无 | 不执行子进程/终端命令 |
 | lifecycle | 无 | 无 install/prepare/postinstall 脚本 |
+
+**写入边界（`/dsh-buddy/platform-token`）**：只接受 PUT/POST/DELETE（GET 等返回 405）；请求体
+仅取 `token` 字段，先归一化（去 `Bearer ` 前缀、整段 `localStorage.userToken` JSON 取 `value`），
+空值与 >4096 字符拒绝；仅当请求带 `Origin` 且与 `Host` 不同源时返回 403；被拒请求不触碰凭据存储；
+写入/移除后仅让余额缓存失效，不做任何值回显。
 
 **失败边界**：所有 HTTP 路由永远返回 200 + JSON（或静态资源字节），绝不悬挂；余额无 Key /
 4xx / 结构异常时返回结构化错误并在前端静默降级；网络瞬时故障沿用过期的最近余额并标注
