@@ -1,7 +1,7 @@
-{
+﻿{
   "name": "dsh-buddy-widget",
-  "version": "0.1.2",
-  "description": "DSH 陪伴助手挂件：常驻右下角的小章鱼，实时反映会话状态（摸鱼/思考/回复），每轮结束弹出 token 与金额，今日对话统计（轮次/token/估算费用），可选余额显示（配置 DEEPSEEK_API_KEY 后启用，无 key 自动隐藏余额行）。",
+  "version": "0.1.3",
+  "description": "DSH 闄即鍔╂墜鎸備欢锛氬父椹诲彸涓嬭鐨勫皬绔犻奔锛屽疄鏃跺弽鏄犱細璇濈姸鎬侊紙鎽搁奔/鎬濊€?鍥炲锛夛紝姣忚疆缁撴潫寮瑰嚭 token 涓庨噾棰濓紝浠婃棩瀵硅瘽缁熻锛堣疆娆?token/浼扮畻璐圭敤锛夛紝鍙€変綑棰濇樉绀猴紙閰嶇疆 DEEPSEEK_API_KEY 鍚庡惎鐢紝鏃?key 鑷姩闅愯棌浣欓琛岋級銆?,
   "keywords": [
     "dsh",
     "dsh-plugin",
