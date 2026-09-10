@@ -117,14 +117,14 @@ if (st1.body.today.turns !== 1 || st1.body.today.msgs !== 1) { console.error('FA
 if (st1.body.last.seq !== 1 || !(st1.body.last.amount > 0)) { console.error('FAIL: last seq=1 & amount>0', JSON.stringify(st1.body.last)); process.exit(1) }
 const totalTokens = st1.body.today.tokens.input + st1.body.today.tokens.cache + st1.body.today.tokens.output + st1.body.today.tokens.reason
 if (totalTokens !== 3400) { console.error('FAIL: 今日四桶 tokens 合计应=3400, got', totalTokens); process.exit(1) }
-// 每轮 tokens 口径：非缓存（input+output+reason）=1400，缓存单列=2000（不混入 tokens）
-if (st1.body.last.tokens !== 1400 || st1.body.last.cacheTokens !== 2000) {
+// 每轮 tokens 口径：非缓存（input+output；输出已含推理）=1300，缓存单列=2000（不混入 tokens）
+if (st1.body.last.tokens !== 1300 || st1.body.last.cacheTokens !== 2000) {
   console.error('FAIL: last.tokens/cacheTokens 口径错误', JSON.stringify(st1.body.last)); process.exit(1)
 }
-console.log('PASS: 每轮结算 turns=1 四桶=3400（tokens=1400 + 缓存=2000）cost>0 → last{seq:1}')
-// 期望 cost：cache 2000*0.05 + input 1000*1.5 + (300+100)*4.5，按 /1e6，空闲价或高峰价之一
+console.log('PASS: 每轮结算 turns=1 四桶=3400（tokens=1300 + 缓存=2000）cost>0 → last{seq:1}')
+// 期望 cost：cache*命中价 + input*未命中价 + output*输出价（推理已含在 output，不重复计），空闲/高峰二选一
 const c = st1.body.today.cost
-if (!(Math.abs(c - (2000 * 0.05 + 1000 * 1.5 + 400 * 4.5) / 1e6) < 1e-9 || Math.abs(c - (2000 * 0.1 + 1000 * 3.0 + 400 * 9) / 1e6) < 1e-9)) {
+if (!(Math.abs(c - (2000 * 0.05 + 1000 * 1.5 + 300 * 4.5) / 1e6) < 1e-9 || Math.abs(c - (2000 * 0.1 + 1000 * 3.0 + 300 * 9.0) / 1e6) < 1e-9)) {
   console.error('FAIL: cost 定价异常', c); process.exit(1)
 }
 console.log('PASS: cost 按峰谷定价表换算合理 =', c.toFixed(6))
